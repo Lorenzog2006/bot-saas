@@ -895,12 +895,20 @@ def handle_admin(body):
         if not clienti:
             send(ADMIN_TOKEN, chat_id, "Nessun cliente attivo.")
             return
-        righe = "\n".join(
-            f"{'✅' if c['active'] else '⏸'} *{c['name']}* — {c.get('owner_name','?')}\n"
-            f"   📅 {c.get('created_at','')}"
-            for c in clienti
+        righe = []
+        for c in clienti:
+            s = get_daily_stats(c["id"])
+            msg_oggi = s["totale"] if s else 0
+            righe.append(
+                f"{'✅' if c['active'] else '⏸'} *{c['name']}*\n"
+                f"   👤 {c.get('owner_name','?')}\n"
+                f"   📅 Attivo dal: {c.get('created_at','—')}\n"
+                f"   💬 Messaggi oggi: {msg_oggi}"
+            )
+        send(ADMIN_TOKEN, chat_id,
+            f"👥 *Clienti: {len(clienti)}*\n\n" + "\n\n".join(righe),
+            parse_mode="Markdown"
         )
-        send(ADMIN_TOKEN, chat_id, f"👥 *Clienti attivi: {len(clienti)}*\n\n{righe}", parse_mode="Markdown")
         return
 
     # ── /stats ──
