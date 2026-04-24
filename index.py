@@ -954,6 +954,56 @@ def handle_admin(body):
             send(ADMIN_TOKEN, chat_id, f"❌ Errore: {e}")
         return
 
+    # ── /elimina ──
+    if testo.startswith("/elimina"):
+        nome_cerca = testo[8:].strip().lower()
+        if not nome_cerca:
+            send(ADMIN_TOKEN, chat_id, "Uso: /elimina <nome cliente>\nEs: /elimina mario rossi")
+            return
+        clienti = get_all_clients()
+        trovato = next((c for c in clienti if nome_cerca in c["name"].lower()), None)
+        if not trovato:
+            send(ADMIN_TOKEN, chat_id, "❌ Cliente non trovato. Usa /clienti per vedere i nomi.")
+            return
+        _admin_state[str(chat_id)] = {"step": "await_confirm_delete", "data": {"client": trovato}}
+        send(ADMIN_TOKEN, chat_id,
+            f"⚠️ Sei sicuro di voler eliminare *{trovato['name']}*?\n\n"
+            f"Questa azione cancellerà:\n"
+            f"• Le info dell'appartamento\n"
+            f"• Le prenotazioni\n"
+            f"• I media salvati\n"
+            f"• Le statistiche\n\n"
+            f"Scrivi *ELIMINA* per confermare o *ANNULLA* per cancellare.",
+            parse_mode="Markdown"
+        )
+        return
+
+    if step == "await_confirm_delete":
+        client = stato["data"]["client"]
+        if testo.strip().upper() == "ELIMINA":
+            try:
+                # Disattiva webhook
+                try:
+                    import urllib.request as ur
+                    ur.urlopen(
+                        f"https://api.telegram.org/bot{client['telegram_token']}/deleteWebhook",
+                        timeout=5
+                    )
+                except Exception:
+                    pass
+                # Elimina dal DB (CASCADE elimina anche le tabelle collegate)
+                sb("DELETE", "clients", params={"id": f"eq.{client['id']}"})
+                _client_cache.pop(client["telegram_token"], None)
+                _admin_state.pop(str(chat_id), None)
+                send(ADMIN_TOKEN, chat_id,
+                    f"✅ *{client['name']}* eliminato definitivamente.", parse_mode="Markdown")
+            except Exception as e:
+                send(ADMIN_TOKEN, chat_id, f"❌ Errore durante l'eliminazione: {e}")
+        elif testo.strip().upper() == "ANNULLA":
+            _admin_state.pop(str(chat_id), None)
+            send(ADMIN_TOKEN, chat_id, "✅ Operazione annullata.")
+        return
+
     # ── /setinfo ──
     if testo.startswith("/setinfo"):
         nome_cerca = testo[8:].strip().lower()
@@ -998,7 +1048,8 @@ def handle_admin(body):
         "/stats — Statistiche di oggi\n"
         "/setinfo <nome> — Modifica info appartamento cliente\n"
         "/pausa <nome> — Metti in pausa un bot\n"
-        "/riattiva <nome> — Riattiva un bot",
+        "/riattiva <nome> — Riattiva un bot\n"
+        "/elimina <nome> — Elimina cliente definitivamente",
         parse_mode="Markdown"
     )
 
