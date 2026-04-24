@@ -954,12 +954,49 @@ def handle_admin(body):
             send(ADMIN_TOKEN, chat_id, f"❌ Errore: {e}")
         return
 
+    # ── /setinfo ──
+    if testo.startswith("/setinfo"):
+        nome_cerca = testo[8:].strip().lower()
+        if not nome_cerca:
+            send(ADMIN_TOKEN, chat_id, "Uso: /setinfo <nome cliente>\nEs: /setinfo mario rossi")
+            return
+        clienti = get_all_clients()
+        trovato = next((c for c in clienti if nome_cerca in c["name"].lower()), None)
+        if not trovato:
+            send(ADMIN_TOKEN, chat_id, "❌ Cliente non trovato. Usa /clienti per vedere i nomi.")
+            return
+        attuale = get_info(trovato["id"])
+        _admin_state[str(chat_id)] = {"step": "await_info", "data": {"client": trovato}}
+        anteprima = attuale[:400] + "..." if len(attuale) > 400 else attuale
+        send(ADMIN_TOKEN, chat_id,
+            f"📝 *{trovato['name']}*\n\n"
+            f"Contenuto attuale:\n```\n{anteprima}\n```\n\n"
+            f"Inviami il nuovo contenuto completo per sovrascriverlo,\n"
+            f"oppure scrivi *AGGIUNGI:* seguito dal testo per aggiungere in fondo.",
+            parse_mode="Markdown"
+        )
+        return
+
+    if step == "await_info":
+        client = stato["data"]["client"]
+        if testo.startswith("AGGIUNGI:"):
+            aggiunta = testo[9:].strip()
+            aggiungi_qa(client["id"], aggiunta)
+            _admin_state.pop(str(chat_id), None)
+            send(ADMIN_TOKEN, chat_id, f"✅ Info aggiunta a *{client['name']}*!", parse_mode="Markdown")
+        else:
+            salva_info(client["id"], testo)
+            _admin_state.pop(str(chat_id), None)
+            send(ADMIN_TOKEN, chat_id, f"✅ Contenuto aggiornato per *{client['name']}*!", parse_mode="Markdown")
+        return
+
     # ── Aiuto ──
     send(ADMIN_TOKEN, chat_id,
         "🤖 *Comandi disponibili:*\n\n"
         "/nuovo — Aggiungi un nuovo cliente\n"
         "/clienti — Lista tutti i clienti\n"
         "/stats — Statistiche di oggi\n"
+        "/setinfo <nome> — Modifica info appartamento cliente\n"
         "/pausa <nome> — Metti in pausa un bot\n"
         "/riattiva <nome> — Riattiva un bot",
         parse_mode="Markdown"
